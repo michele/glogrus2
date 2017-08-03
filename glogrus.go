@@ -1,12 +1,12 @@
 package glogrus
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
-	"github.com/Sirupsen/logrus"
-	"goji.io"
-	"golang.org/x/net/context"
+
+	"github.com/sirupsen/logrus"
 )
 
 // NewGlogrus allows you to configure a goji middleware that logs all requests and responses
@@ -33,7 +33,7 @@ import (
 //			goji.Serve()
 //		}
 //
-func NewGlogrus(l *logrus.Logger, name string) func(goji.Handler) goji.Handler {
+func NewGlogrus(l *logrus.Logger, name string) func(http.Handler) http.Handler {
 	return NewGlogrusWithReqId(l, name, emptyRequestId)
 }
 
@@ -68,9 +68,10 @@ func NewGlogrus(l *logrus.Logger, name string) func(goji.Handler) goji.Handler {
 //			return ctx.Value("requestIdKey")
 //		}
 //
-func NewGlogrusWithReqId(l *logrus.Logger, name string, reqidf func(context.Context) string) func(goji.Handler) goji.Handler {
-	return func(h goji.Handler) goji.Handler {
-		fn := func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func NewGlogrusWithReqId(l *logrus.Logger, name string, reqidf func(context.Context) string) func(http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 			start := time.Now()
 
 			reqID := reqidf(ctx)
@@ -83,7 +84,7 @@ func NewGlogrusWithReqId(l *logrus.Logger, name string, reqidf func(context.Cont
 			}).Info("req_start")
 			lresp := wrapWriter(w)
 
-			h.ServeHTTPC(ctx, lresp, r)
+			h.ServeHTTP(lresp, r)
 			lresp.maybeWriteHeader()
 
 			latency := float64(time.Since(start)) / float64(time.Millisecond)
@@ -98,7 +99,7 @@ func NewGlogrusWithReqId(l *logrus.Logger, name string, reqidf func(context.Cont
 				"app":     name,
 			}).Info("req_served")
 		}
-		return goji.HandlerFunc(fn)
+		return http.HandlerFunc(fn)
 	}
 
 }
